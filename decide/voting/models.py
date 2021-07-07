@@ -9,6 +9,9 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.translation import gettext_lazy as _
 
+import zipfile
+
+from django.http import HttpResponse
 
 class Question(models.Model):
     desc = models.TextField()
@@ -77,9 +80,13 @@ class QuestionOption(models.Model):
 class Voting(models.Model):
     name = models.CharField(max_length=200)
     desc = models.TextField(blank=True, null=True)
-    question = models.ForeignKey(Question, related_name='voting', on_delete=models.CASCADE)
-    political_party = models.ForeignKey(PoliticalParty, related_name='voting', on_delete=models.CASCADE, null=True)
+    question = models.ForeignKey(Question, related_name='voting', on_delete=models.CASCADE, null=True, blank=True)
+    political_party = models.ForeignKey(PoliticalParty, related_name='voting', on_delete=models.CASCADE, null=True, blank=True)
     # ,blank=True
+    
+    order_question = models.ForeignKey(OrderQuestion, related_name='voting', on_delete=models.CASCADE, null= True, blank=True)
+
+    yes_or_no_question = models.ForeignKey(YesOrNoQuestion, related_name='voting', on_delete=models.CASCADE, null=True, blank=True)
 
     start_date = models.DateTimeField(blank=True, null=True)
     end_date = models.DateTimeField(blank=True, null=True)
@@ -97,7 +104,9 @@ class Voting(models.Model):
         
         url = urllib.parse.quote_plus(self.url.encode('utf-8'))
         
-        if Voting.objects.filter(url=url).exists():
+        print(Voting.objects.filter(url=url))
+
+        if Voting.objects.filter(url=url).exists() and Voting.objects.filter(url=url)[0] != self:
             raise ValidationError({'url': "The url already exists."})
 
     def save(self, *args, **kwargs):
@@ -164,6 +173,7 @@ class Voting(models.Model):
 
         self.do_postproc()
 
+
     def do_postproc(self):
         tally = self.tally
         options = self.question.options.all()
@@ -185,6 +195,17 @@ class Voting(models.Model):
 
         self.postproc = postp
         self.save()
+
+        archivo = open("tallydeVoting"+str((self.id))+".txt","w")
+        archivo.write("\n Hola Mundo\n")
+        archivo.write(str((opts)))
+        archivo.close()
+
+        zip_file=zipfile.ZipFile("tally.zip", mode="w")
+        zip_file.write("tallydeVoting"+str((self.id))+".txt")
+        zip_file.close()
+
+        return zip_file
 
     def __str__(self):
         return self.name
